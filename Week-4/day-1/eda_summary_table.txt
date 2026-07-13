@@ -1,0 +1,25 @@
+
+============================================================
+DATASET INITIAL EXPLORATORY SUMMARY
+============================================================
+TOTAL RECORDS: 48,842
+
+CLASS TARGET BREAKDOWN:
+  * Negative Class (<=50K): 37,155 (76.07%)
+  * Positive Class (>50K) : 11,687 (23.93%)
+
+NOTABLE FEATURE DISTRIBUTIONS:
+1. AGE DISPARITY:
+   High-earners lean significantly older. The mean age of individuals 
+   making >50K is 44.3 years old, compared to 
+   36.9 years old for those making <=50K.
+
+2. EDUCATION IMPACT:
+   Higher education strictly scales with the target class. 
+   41.3% of Bachelors degree holders belong to the positive 
+   high-earning class, compared to only 15.9% of High School graduates.
+
+3. MARITAL STATUS CORRELATION:
+   Being married ('Married-civ-spouse') shows a heavy correlation with the 
+   positive class, yielding a high-earner proportion of 44.6%.
+============================================================
