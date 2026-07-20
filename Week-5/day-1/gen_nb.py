@@ -1,0 +1,332 @@
+import json, os
+
+def code_cell(src):
+    return {"cell_type":"code","execution_count":None,"metadata":{},"outputs":[],"source":src}
+
+def md_cell(src):
+    return {"cell_type":"markdown","metadata":{},"source":src}
+
+cells = []
+
+# HEADER
+cells.append(md_cell([
+    "# Week 5 Day 1 — Agent Foundations: Reasoning Loops, Tool Calling & Raw Python Agents\n",
+    "\n",
+    "> **Goal:** Understand what an agent *actually* is under the hood by building one\n",
+    "> from scratch — no LangChain, no LangGraph, just the Anthropic API + a `while` loop.\n",
+    "\n",
+    "**Setup:**\n",
+    "```bash\n",
+    "pip install anthropic python-dotenv\n",
+    "# Set your key in a .env file:  ANTHROPIC_API_KEY=sk-ant-...\n",
+    "```\n",
+]))
+
+# SETUP
+cells.append(md_cell(["## Setup & Imports"]))
+cells.append(code_cell([
+    "import os, json, time, textwrap\n",
+    "import anthropic\n",
+    "from dotenv import load_dotenv\n",
+    "load_dotenv()\n",
+    "\n",
+    "# Import our tool and agent modules\n",
+    "import sys\n",
+    "sys.path.insert(0, r'd:\\Netixsol_Internship\\netixsol_internship\\Week-5\\day-1')\n",
+    "from Tools import TOOL_SCHEMAS, execute_tool, TOOL_RUNNERS\n",
+    "from Agent  import RawPythonAgent, MODEL, MAX_ITERATIONS\n",
+    "\n",
+    "print('anthropic version:', anthropic.__version__)\n",
+    "print('Tools available  :', list(TOOL_RUNNERS.keys()))\n",
+    "print('Model            :', MODEL)\n",
+]))
+
+# TASK 1
+cells.append(md_cell([
+    "---\n",
+    "## Task 1: Agent Concepts & Mental Model\n",
+    "\n",
+    "### Agent vs Chatbot vs Workflow\n",
+    "\n",
+    "| | Chatbot | Workflow | Agent |\n",
+    "|---|---|---|---|\n",
+    "| **Interaction** | Single-turn Q&A | Fixed sequence of steps | Dynamic, goal-directed |\n",
+    "| **Decision making** | None — prompt-in, text-out | Pre-coded branching | LLM decides what to do next |\n",
+    "| **Tool use** | None | Hard-coded API calls | Chooses tools autonomously |\n",
+    "| **Self-correction** | No | No | Yes — can retry or take different path |\n",
+    "| **Example** | GPT chat window | ETL pipeline | ReAct coding agent |\n",
+    "\n",
+    "**What makes something *agentic*:**\n",
+    "1. **Autonomy** — decides its own next action without explicit human instruction per step\n",
+    "2. **Tool use** — can invoke external capabilities (APIs, code execution, file I/O)\n",
+    "3. **Multi-step planning** — decomposes a goal into a sequence of actions\n",
+    "4. **Self-correction** — observes results and adjusts behaviour (retry, reroute)\n",
+    "\n",
+    "---\n",
+    "\n",
+    "### The ReAct Pattern (Reason → Act → Observe → repeat)\n",
+    "\n",
+    "```\n",
+    "User: \"Which city is warmer, Karachi or London?\"\n",
+    "         │\n",
+    "         ▼\n",
+    "┌─────────────────────────────────────────────────────────┐\n",
+    "│  WHILE  stop_reason != 'end_turn' (no more tool_use):   │\n",
+    "│                                                         │\n",
+    "│  1. REASON  ── LLM reads history, produces thought      │\n",
+    "│     \"I need the weather in Karachi first...\"            │\n",
+    "│                                                         │\n",
+    "│  2. ACT     ── LLM emits tool_use block                 │\n",
+    "│     {name: get_weather, input: {city: \"Karachi\"}}       │\n",
+    "│                                                         │\n",
+    "│  3. OBSERVE ── Python executes tool, appends result     │\n",
+    "│     tool_result: \"34°C, Hot and sunny\"                  │\n",
+    "│                                                         │\n",
+    "│     ──► loop back to step 1 ◄──                         │\n",
+    "│     LLM now looks up London, then calculates difference │\n",
+    "└─────────────────────────────────────────────────────────┘\n",
+    "         │\n",
+    "         ▼  stop_reason = 'end_turn'  (final text, no tool_use)\n",
+    "\"Karachi (34°C) is 17°C warmer than London (17°C).\"\n",
+    "```\n",
+    "\n",
+    "---\n",
+    "\n",
+    "### When an agent is overkill\n",
+    "\n",
+    "> If you can answer the question with a **single prompt** or a **deterministic script**,\n",
+    "> use that instead — agents add latency, API cost, and failure surface.\n",
+    "> Use an agent only when the *path* to the answer is unknown in advance and requires\n",
+    "> dynamic decision-making across multiple steps.\n",
+    ">\n",
+    "> **Examples of overkill:** summarise this text, translate this sentence, classify\n",
+    "> this email, extract fields from a fixed-format document.\n",
+    "> A simple `client.messages.create()` call suffices for all of these.\n",
+]))
+
+# TASK 2
+cells.append(md_cell([
+    "---\n",
+    "## Task 2: Tool Calling Fundamentals\n",
+    "\n",
+    "### Tool Schemas\n",
+    "\n",
+    "Each tool has:\n",
+    "- `name` — identifier the model puts in `tool_use.name`\n",
+    "- `description` — **most important field**: Claude picks tools entirely from this\n",
+    "- `input_schema` — JSON Schema object the model must satisfy\n",
+    "\n",
+    "**Why descriptions matter:**  \n",
+    "Claude sees *only* the name + description when deciding which tool to call.\n",
+    "A vague description like *\"does math\"* leads to missed calls or wrong tool selection.\n",
+    "A precise description stating inputs, outputs, units, and edge cases (e.g. division by zero)\n",
+    "leads to reliable, predictable calling behaviour.\n",
+]))
+cells.append(code_cell([
+    "# Print all tool schemas in a readable format\n",
+    "for schema in TOOL_SCHEMAS:\n",
+    "    print(f\"\\n{'='*50}\")\n",
+    "    print(f\"Tool: {schema['name']}\")\n",
+    "    print(f\"Description: {schema['description'][:120]}...\")\n",
+    "    props = schema['input_schema']['properties']\n",
+    "    print(f\"Inputs: {list(props.keys())}\")\n",
+    "    print(f\"Required: {schema['input_schema'].get('required', [])}\")\n",
+]))
+
+cells.append(md_cell(["### Manual Tool Round-trip (no agent loop)\n"]))
+cells.append(code_cell([
+    "# Demonstrate a single tool call manually (Task 2 requirement)\n",
+    "client = anthropic.Anthropic()\n",
+    "\n",
+    "# Step 1: Send request — model chooses a tool\n",
+    "resp1 = client.messages.create(\n",
+    "    model='claude-3-5-haiku-20241022',\n",
+    "    max_tokens=512,\n",
+    "    tools=TOOL_SCHEMAS,\n",
+    "    messages=[{\"role\": \"user\", \"content\": \"What is sqrt(225) + 15 squared?\"}]\n",
+    ")\n",
+    "print('Stop reason:', resp1.stop_reason)\n",
+    "tool_block = next(b for b in resp1.content if b.type == 'tool_use')\n",
+    "print('Tool chosen:', tool_block.name)\n",
+    "print('Tool input :', tool_block.input)\n",
+    "\n",
+    "# Step 2: Execute tool manually\n",
+    "result = execute_tool(tool_block.name, tool_block.input)\n",
+    "print('Tool result:', result)\n",
+    "\n",
+    "# Step 3: Return tool_result and get final answer\n",
+    "resp2 = client.messages.create(\n",
+    "    model='claude-3-5-haiku-20241022',\n",
+    "    max_tokens=512,\n",
+    "    tools=TOOL_SCHEMAS,\n",
+    "    messages=[\n",
+    "        {\"role\": \"user\",      \"content\": \"What is sqrt(225) + 15 squared?\"},\n",
+    "        {\"role\": \"assistant\", \"content\": resp1.content},\n",
+    "        {\"role\": \"user\",      \"content\": [{\n",
+    "            \"type\": \"tool_result\",\n",
+    "            \"tool_use_id\": tool_block.id,\n",
+    "            \"content\": result\n",
+    "        }]}\n",
+    "    ]\n",
+    ")\n",
+    "final = next(b.text for b in resp2.content if b.type == 'text')\n",
+    "print('\\nFinal answer:', final)\n",
+]))
+
+# TASK 3
+cells.append(md_cell([
+    "---\n",
+    "## Task 3: Minimal Agent Loop\n",
+    "\n",
+    "The `RawPythonAgent` implements the full ReAct loop:\n",
+    "```python\n",
+    "while iteration < MAX_ITERATIONS:\n",
+    "    response = call_llm(conversation_history)\n",
+    "    if response.stop_reason == 'end_turn' and no tool_use:\n",
+    "        return final_text   # done\n",
+    "    for tool_call in extract_tool_uses(response):\n",
+    "        result = execute_tool(tool_call.name, tool_call.input)\n",
+    "        append tool_result to conversation_history\n",
+    "```\n",
+]))
+cells.append(code_cell([
+    "agent = RawPythonAgent(max_iterations=10)\n",
+]))
+
+cells.append(md_cell(["### Test 1: Single tool call\n"]))
+cells.append(code_cell([
+    "answer = agent.run_fresh(\n",
+    "    'What is the square root of 256 plus 7 to the power of 3?'\n",
+    ")\n",
+]))
+
+cells.append(md_cell(["### Test 2: Multi-step — weather comparison (2 tool calls)\n"]))
+cells.append(code_cell([
+    "answer = agent.run_fresh(\n",
+    "    'Look up the current weather in Karachi and London. '\n",
+    "    'Which city is warmer, and by how many degrees Celsius?'\n",
+    ")\n",
+]))
+
+cells.append(md_cell(["### Test 3: Three tool calls — weather + unit conversions\n"]))
+cells.append(code_cell([
+    "answer = agent.run_fresh(\n",
+    "    'What is the temperature in Dubai? '\n",
+    "    'Convert that temperature to both Fahrenheit and Kelvin.'\n",
+    ")\n",
+]))
+
+cells.append(md_cell(["### Test 4: Complex — 2 weather lookups + average calculation\n"]))
+cells.append(code_cell([
+    "answer = agent.run_fresh(\n",
+    "    'Find the temperatures in Tokyo and Sydney. '\n",
+    "    'Calculate their average and tell me which is warmer.'\n",
+    ")\n",
+]))
+
+# TASK 4
+cells.append(md_cell([
+    "---\n",
+    "## Task 4: Memory & State Handling\n",
+    "\n",
+    "### Two kinds of memory in this agent\n",
+    "\n",
+    "| Memory type | What it is | Where it lives | Who reads it |\n",
+    "|---|---|---|---|\n",
+    "| **Conversation memory** | The full `messages` list passed to the API on every turn | `agent.conversation_history` | The LLM (full context window) |\n",
+    "| **Working memory** | Scratchpad: iteration count, tools called, errors seen, start time | `agent.working_state` | The Python agent code (for logging/guardrails) |\n",
+    "\n",
+    "Conversation memory is how the agent *knows what it already did*.\n",
+    "Working memory is how the *developer* monitors and controls the agent.\n",
+    "\n",
+    "### Multi-turn chat (history persists)\n",
+]))
+cells.append(code_cell([
+    "# Multi-turn: history persists between calls\n",
+    "agent.clear_history()\n",
+    "agent.chat('What is the weather in Karachi?')\n",
+    "agent.chat('How does that compare to London?')  # agent remembers Karachi answer\n",
+    "\n",
+    "print('\\nWorking state after multi-turn:')\n",
+    "for k, v in agent.working_state.items():\n",
+    "    print(f'  {k}: {v}')\n",
+    "\n",
+    "print('\\nConversation history length:', len(agent.conversation_history), 'messages')\n",
+]))
+
+# TASK 5
+cells.append(md_cell([
+    "---\n",
+    "## Task 5: Failure Modes & Guardrails\n",
+    "\n",
+    "### Deliberately Breaking the Agent\n",
+]))
+
+cells.append(md_cell(["#### Failure 1: Ambiguous request (no city specified)\n"]))
+cells.append(code_cell([
+    "# Model will have to ask for clarification or guess — observe behaviour\n",
+    "agent.run_fresh(\"What's the weather like?\")\n",
+]))
+
+cells.append(md_cell(["#### Failure 2: Tool returns an error (city not in database)\n"]))
+cells.append(code_cell([
+    "agent.run_fresh('What is the weather in Narnia?')\n",
+]))
+
+cells.append(md_cell(["#### Failure 3: Task needs an undefined tool (web search)\n"]))
+cells.append(code_cell([
+    "# Model has no search tool — observe graceful degradation\n",
+    "agent.run_fresh(\n",
+    "    'Search the web for the 3 most recent AI safety papers and summarise them.'\n",
+    ")\n",
+]))
+
+cells.append(md_cell(["#### Failure 4: Bad/malicious tool argument\n"]))
+cells.append(code_cell([
+    "# Calculator's allowlist blocks this — observe safe error handling\n",
+    "agent.run_fresh(\"Calculate the result of 'import os; os.system(\\\"whoami\\\")'\")\n",
+]))
+
+cells.append(md_cell([
+    "---\n",
+    "### Failure Mode Catalogue\n",
+    "\n",
+    "| # | Failure Mode | What happens | Mitigation |\n",
+    "|---|---|---|---|\n",
+    "| 1 | **Infinite loop** | Model keeps calling tools, never reaches `end_turn` | `MAX_ITERATIONS` safeguard + timeout |\n",
+    "| 2 | **Hallucinated tool call** | Model invents a tool name not in the schema | `execute_tool` returns `ERROR: tool not defined`; model is told via `tool_result` |\n",
+    "| 3 | **Wrong tool arguments** | Model passes wrong types or missing required fields | JSON Schema validation before calling runner; return structured error |\n",
+    "| 4 | **Silent tool error** | Tool crashes but exception is swallowed | Wrap all runners in `try/except`; return `ERROR:` string; set `is_error=True` |\n",
+    "| 5 | **Ambiguous request** | Model doesn't have enough context to act | Model asks clarifying question (end_turn without tool_use) — good behaviour |\n",
+    "| 6 | **Missing tool** | User asks for capability we haven't defined | Model either asks user to provide info manually, or answers from training data |\n",
+    "\n",
+    "---\n",
+    "\n",
+    "### Why frameworks like LangChain / LangGraph / CrewAI exist\n",
+    "\n",
+    "> We just built a working agent in ~150 lines of Python, but every production\n",
+    "> team re-discovers the same problems:\n",
+    "> retries, streaming, token counting, state persistence, human-in-the-loop\n",
+    "> pauses, parallel tool calls, multi-agent routing, observability, prompt versioning.\n",
+    "> Frameworks package these battle-tested patterns so engineers don't reinvent them.\n",
+    "> The tradeoff is opacity — knowing what we built today means you can debug\n",
+    "> *inside* the framework when it behaves unexpectedly, rather than treating it\n",
+    "> as a black box.\n",
+]))
+
+# Assemble
+nb = {
+    "cells": cells,
+    "metadata": {
+        "kernelspec": {"display_name": "Python 3", "language": "python", "name": "python3"},
+        "language_info": {"name": "python", "version": "3.13.0"}
+    },
+    "nbformat": 4,
+    "nbformat_minor": 4
+}
+
+path = r'd:\Netixsol_Internship\netixsol_internship\Week-5\day-1\notebook.ipynb'
+with open(path, 'w', encoding='utf-8') as f:
+    json.dump(nb, f, indent=1)
+
+print(f'Notebook written: {path}  ({len(cells)} cells)')
