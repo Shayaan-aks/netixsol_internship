@@ -1,0 +1,14 @@
+product_name,category,price_usd,rating,brand,in_stock
+iPhone 15 Pro,Smartphone,999,4.7,Apple,Yes
+Samsung Galaxy S24,Smartphone,799,4.5,Samsung,Yes
+Google Pixel 8,Smartphone,699,4.4,Google,Yes
+MacBook Air M3,Laptop,1299,4.8,Apple,Yes
+Dell XPS 15,Laptop,1199,4.6,Dell,Yes
+Lenovo ThinkPad X1,Laptop,1099,4.5,Lenovo,Yes
+iPad Pro 12.9,Tablet,1099,4.7,Apple,Yes
+Samsung Galaxy Tab S9,Tablet,799,4.4,Samsung,Yes
+Sony WH-1000XM5,Headphones,349,4.8,Sony,Yes
+Apple AirPods Pro 2,Headphones,249,4.6,Apple,Yes
+Bose QC45,Headphones,279,4.5,Bose,Yes
+Apple Watch Series 9,Smartwatch,399,4.7,Apple,Yes
+Samsung Galaxy Watch 6,Smartwatch,299,4.4,Samsung,Yes
