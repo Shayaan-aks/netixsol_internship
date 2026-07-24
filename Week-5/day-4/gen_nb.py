@@ -105,8 +105,8 @@ cells.append(code_cell([
 ]))
 
 cells.append(code_cell([
-    "# Import main execution runner from code.py\n",
-    "from code import run_crewai_simulation_or_live, evaluate_runs, print_comparison_report\n",
+    "# Import main execution runner from agent_engine.py\n",
+    "from agent_engine import run_crewai_simulation_or_live, evaluate_runs, print_comparison_report\n",
     "\n",
     "# Run Task 3: Sequential Process Crew\n",
     "seq_results = run_crewai_simulation_or_live(process_type='sequential')\n"

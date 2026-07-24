@@ -69,8 +69,8 @@ cells.append(md_cell([
 ]))
 
 cells.append(code_cell([
-    "# Import core engine runner from code.py\n",
-    "from code import build_onboarding_graph, run_capstone_evaluation, print_evaluation_summary_table\n",
+    "# Import core engine runner from agent_engine.py\n",
+    "from agent_engine import build_onboarding_graph, run_capstone_evaluation, print_evaluation_summary_table\n",
     "\n",
     "# Instantiate Onboarding Graph\n",
     "graph = build_onboarding_graph()\n",

@@ -18,7 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 # Import Core Agent Engine
-from code import build_onboarding_graph, ClientOnboardingState, sanitize_input, query_client_database
+from agent_engine import build_onboarding_graph, ClientOnboardingState, sanitize_input, query_client_database
 
 app = FastAPI(
     title="Enterprise Client Onboarding Agent API",
