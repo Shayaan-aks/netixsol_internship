@@ -1,65 +1,82 @@
 """
-code.py — Week 6 Day 1: AFL Data Foundations — EDA, Feature Engineering & Prediction Targets
+code.py — Main Production Execution Pipeline for AFL Data Foundations
+Week 6 Day 1 Project Entry Point
 
-Tasks Covered:
-  Task 1: Data Inventory, Entity Grains, Relocations/Eras & Quality Audits
-  Task 2: Prediction Target Definitions & Data Contract Formulas
-  Task 3: Exploratory Data Analysis (Home Advantage, Player Metrics, 5 Visual Relationships)
-  Task 4: Leakage-Free Rolling Feature Engineering & Parquet Feature Table Export
-  Task 5: Reproducible Time-Based Train/Hold-Out Split & Realistic Accuracy Ceiling Analysis
+Executes:
+  1. Copies raw datasets into data/raw/
+  2. Runs automated data inventory & quality audits
+  3. Preprocesses and cleans player & match data -> data/processed/
+  4. Computes leakage-free pre-match rolling features -> data/features/afl_feature_table.parquet
+  5. Generates 18 publication-quality figures -> outputs/figures/
+  6. Generates feature dictionary & data dictionary contracts -> outputs/
+  7. Performs reproducible time-based train/val/test split & zero-leakage verification -> outputs/reports/
 """
 
 import os
 import sys
+import shutil
 import json
 import time
-import textwrap
-import numpy as np
+from pathlib import Path
+from typing import Dict, List, Any, Optional, Tuple
 import pandas as pd
-from typing import Dict, List, Any, Tuple, Optional
+import numpy as np
 
-# Force UTF-8 encoding for Windows console compatibility
-if sys.stdout.encoding.lower() != 'utf-8':
-    try:
-        sys.stdout.reconfigure(encoding='utf-8')
-    except Exception:
-        pass
+# Ensure src module import accessibility
+PROJECT_ROOT = Path(__file__).resolve().parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
-DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
-os.makedirs(DATA_DIR, exist_ok=True)
+from src.config import (
+    DATA_RAW_DIR, DATA_PROCESSED_DIR, DATA_FEATURES_DIR, OUTPUTS_FIGURES_DIR, OUTPUTS_REPORTS_DIR,
+    FANTASY_WEIGHTS, ROLLING_WINDOWS
+)
+from src.utils import setup_logger, ensure_directories, save_dataframe, ExecutionTimer
+from src.data_quality import (
+    inspect_raw_datasets, generate_ascii_erd, analyze_historical_eras_and_shifts, audit_data_quality
+)
+from src.preprocessing import preprocess_player_data, preprocess_match_data, normalize_team_names
+from src.feature_engineering import (
+    compute_composite_fantasy_score, build_team_rolling_features, encode_categorical_features,
+    generate_feature_dictionary
+)
+from src.visualizations import generate_all_publication_figures
+from src.train_split import create_time_split, verify_zero_leakage
 
-PARQUET_PATH = os.path.join(DATA_DIR, "afl_feature_table.parquet")
-CSV_PATH = os.path.join(DATA_DIR, "afl_feature_table.csv")
+logger = setup_logger("main_pipeline")
 
-# ─────────────────────────────────────────────────────────────────────────────
-# 1. Task 1: Data Inventory & Quality Checks
-# ─────────────────────────────────────────────────────────────────────────────
+
+def populate_raw_data() -> None:
+    """Copies raw dataset CSVs from Week-2/Day-2 into data/raw/ for self-contained execution."""
+    src_merged = PROJECT_ROOT.parent.parent / "Week-2" / "Day-2" / "merged_players.csv"
+    src_info = PROJECT_ROOT.parent.parent / "Week-2" / "Day-2" / "players_info.csv"
+    
+    os.makedirs(DATA_RAW_DIR, exist_ok=True)
+    
+    if src_merged.exists():
+        shutil.copy(src_merged, DATA_RAW_DIR / "merged_players.csv")
+    if src_info.exists():
+        shutil.copy(src_info, DATA_RAW_DIR / "players_info.csv")
+        
+    logger.info(f"Populated raw data directory: {DATA_RAW_DIR}")
+
 
 def load_raw_afl_datasets() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """
-    Loads raw AFL datasets: merged_players (player-season stats) and players_info (player profiles).
-    Synthesizes match-level fixtures spanning 1983–2025 (42 seasons).
-    """
-    path_merged = os.path.normpath(os.path.join(os.path.dirname(__file__), "../../Week-2/Day-2/merged_players.csv"))
-    path_info = os.path.normpath(os.path.join(os.path.dirname(__file__), "../../Week-2/Day-2/players_info.csv"))
+    """Loads raw AFL datasets and synthesizes match fixtures."""
+    populate_raw_data()
     
-    if os.path.exists(path_merged) and os.path.exists(path_info):
-        df_players = pd.read_csv(path_merged)
-        df_info = pd.read_csv(path_info)
-    else:
-        # Fallback simulation if path varies
-        df_players = pd.DataFrame()
-        df_info = pd.DataFrame()
-        
-    df_matches = generate_afl_matches_dataset(start_year=1983, end_year=2025)
+    p_merged = DATA_RAW_DIR / "merged_players.csv"
+    p_info = DATA_RAW_DIR / "players_info.csv"
+    
+    df_players = pd.read_csv(p_merged) if p_merged.exists() else pd.DataFrame()
+    df_info = pd.read_csv(p_info) if p_info.exists() else pd.DataFrame()
+    df_matches = generate_afl_matches_dataset(1983, 2025)
+    
     return df_players, df_info, df_matches
 
 
 def generate_afl_matches_dataset(start_year: int = 1983, end_year: int = 2025) -> pd.DataFrame:
-    """
-    Constructs a comprehensive, realistic match-level AFL dataset spanning 1983 to 2025.
-    Includes home team, away team, scores, venues, rest days, travel indicators, and round info.
-    """
+    """Constructs a comprehensive, realistic match-level AFL dataset (1983–2025)."""
     teams = [
         'Adelaide Crows', 'Brisbane Lions', 'Carlton Blues', 'Collingwood Magpies',
         'Essendon Bombers', 'Fremantle Dockers', 'Geelong Cats', 'Gold Coast Suns',
@@ -101,14 +118,10 @@ def generate_afl_matches_dataset(start_year: int = 1983, end_year: int = 2025) -
                 home_state = states.get(venue, 'VIC')
                 away_state = states.get(venues.get(away, 'MCG'), 'VIC')
                 
-                # Interstate travel flag
                 is_interstate = 1 if home_state != away_state else 0
-                
-                # Rest days (randomized realistically 6 to 9 days)
                 home_rest = np.random.choice([6, 7, 7, 7, 8, 9])
                 away_rest = np.random.choice([6, 7, 7, 7, 8, 9])
                 
-                # Home Advantage (+6.5 points expected score boost)
                 base_home_score = np.random.poisson(88) + 6
                 base_away_score = np.random.poisson(84)
                 
@@ -121,7 +134,7 @@ def generate_afl_matches_dataset(start_year: int = 1983, end_year: int = 2025) -
                 away_score = away_goals * 6 + away_behinds
                 
                 margin = home_score - away_score
-                home_win = 1 if margin > 0 else (0 if margin < 0 else 0)
+                home_win = 1 if margin > 0 else 0
                 
                 date_str = f"{year}-{(r % 6) + 4:02d}-{(i % 25) + 1:02d}"
                 
@@ -153,262 +166,64 @@ def generate_afl_matches_dataset(start_year: int = 1983, end_year: int = 2025) -
     return pd.DataFrame(records)
 
 
-def perform_data_quality_checks(df_players: pd.DataFrame, df_info: pd.DataFrame, df_matches: pd.DataFrame) -> Dict[str, Any]:
-    """
-    Performs data quality checks: missing value audit, duplicate detection, and outlier checks.
-    """
-    report = {
-        "player_season_rows": len(df_players),
-        "player_info_rows": len(df_info),
-        "match_level_rows": len(df_matches),
-        "seasons_covered": f"{df_matches['season'].min()} to {df_matches['season'].max()} ({df_matches['season'].nunique()} Seasons)",
-        "teams_count": df_matches['home_team'].nunique(),
-        "missing_values": {
-            "height": int(df_players['height'].isna().sum()) if 'height' in df_players.columns else 0,
-            "weight": int(df_players['weight'].isna().sum()) if 'weight' in df_players.columns else 0,
-            "born_date": int(df_players['born_date'].isna().sum()) if 'born_date' in df_players.columns else 0,
-        },
-        "duplicate_rows": int(df_players.duplicated(subset=['player_id', 'year', 'team']).sum()) if 'player_id' in df_players.columns else 0,
-        "historical_relocations_documented": [
-            "South Melbourne (VFL) -> Sydney Swans (1982)",
-            "Fitzroy Lions merged with Brisbane Bears -> Brisbane Lions (1996)",
-            "Gold Coast Suns expansion (2011)",
-            "GWS Giants expansion (2012)"
-        ]
-    }
-    return report
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 2. Task 2: Prediction Target Definitions & Data Contract
-# ─────────────────────────────────────────────────────────────────────────────
-
-def calculate_composite_fantasy_score(kicks: float, handballs: float, marks: float, goals: float, behinds: float, tackles: float, hitouts: float) -> float:
-    """
-    AFL SuperCoach / Fantasy Points Composite Formula:
-    Fantasy Score = 3*Kicks + 2*Handballs + 3*Marks + 6*Goals + 1*Behinds + 4*Tackles + 1*Hitouts
-    """
-    return (3 * kicks) + (2 * handballs) + (3 * marks) + (6 * goals) + (1 * behinds) + (4 * tackles) + (1 * hitouts)
-
-
 def apply_target_definitions(df_matches: pd.DataFrame, df_players: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    """
-    Adds explicit prediction target columns to match and player datasets.
-    """
+    """Adds prediction target columns to match and player datasets."""
     df_m = df_matches.copy()
     df_p = df_players.copy()
     
-    # Match Level Targets
     df_m['target_home_win'] = (df_m['score_margin'] > 0).astype(int)
     df_m['target_score_margin'] = df_m['score_margin']
     df_m['target_total_points'] = df_m['home_score'] + df_m['away_score']
     
-    # Player Level Targets & Composite Metric
     if not df_p.empty:
-        df_p['composite_fantasy_score'] = calculate_composite_fantasy_score(
-            df_p.get('kicks', 0), df_p.get('handballs', 0), df_p.get('marks', 0),
-            df_p.get('goals', 0), df_p.get('behinds', 0), df_p.get('tackles', 0), df_p.get('hit_outs', 0)
-        )
+        df_p['composite_fantasy_score'] = compute_composite_fantasy_score(df_p)
         df_p['target_top_disposals'] = (df_p.get('avg_disposals', 0) >= 25.0).astype(int)
         df_p['target_top_goals'] = (df_p.get('avg_goals', 0) >= 2.0).astype(int)
         
     return df_m, df_p
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# 3. Task 3: Exploratory Data Analysis (EDA)
-# ─────────────────────────────────────────────────────────────────────────────
-
-def perform_eda_analysis(df_matches: pd.DataFrame, df_players: pd.DataFrame) -> Dict[str, Any]:
-    """
-    Analyzes home-ground advantage, team win rates, player distributions, and 5 key relationships.
-    """
-    home_win_rate = round((df_matches['target_home_win'].mean()) * 100, 2)
-    avg_margin = round(df_matches['score_margin'].mean(), 2)
-    interstate_win_rate = round(df_matches[df_matches['is_interstate'] == 1]['target_home_win'].mean() * 100, 2)
-    
-    # Top Historical Players
-    top_disposals = []
-    top_goals = []
-    if not df_players.empty and 'player_name' in df_players.columns:
-        top_d = df_players.groupby('player_name')['disposals'].sum().sort_values(ascending=False).head(5)
-        top_g = df_players.groupby('player_name')['goals'].sum().sort_values(ascending=False).head(5)
-        top_disposals = list(top_d.index)
-        top_goals = list(top_g.index)
-
-    return {
-        "historical_home_win_rate_percent": home_win_rate,
-        "average_home_margin_points": avg_margin,
-        "interstate_home_win_rate_percent": interstate_win_rate,
-        "home_ground_advantage_boost_points": 6.5,
-        "top_historical_disposal_leaders": top_disposals or ["Scott Pendlebury", "Patrick Dangerfield", "Gary Ablett Jr", "Robert Harvey", "Sam Mitchell"],
-        "top_historical_goal_leaders": top_goals or ["Lance Franklin", "Matthew Lloyd", "Tony Lockett", "Jason Dunstall", "Jack Riewoldt"],
-        "five_key_visual_relationships": [
-            "1. Recent Team Form (Last 5 Win %) vs. Match Win Probability",
-            "2. Rest Days Differential (Home Rest - Away Rest) vs. Score Margin",
-            "3. Interstate Travel Penalty (WA/SA teams traveling to VIC)",
-            "4. Venue Historical Win Rate vs. Match Outcome",
-            "5. Head-to-Head Win Rate in Last 5 Matchups vs. Margin"
-        ]
-    }
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 4. Task 4: Feature Engineering (No Data Leakage)
-# ─────────────────────────────────────────────────────────────────────────────
-
-def build_leakage_free_feature_table(df_matches: pd.DataFrame) -> pd.DataFrame:
-    """
-    Engineers rolling form features, head-to-head records, rest day differentials,
-    and venue win rates strictly using historical pre-match windows (.shift(1)).
-    """
-    df = df_matches.sort_values(['season', 'round_number', 'match_date']).copy()
-    
-    # Pre-match rolling team form (Last 3 and Last 5 games)
-    team_history = {}
-    
-    home_form_3 = []
-    away_form_3 = []
-    home_form_5 = []
-    away_form_5 = []
-    home_streak = []
-    away_streak = []
-    h2h_home_win_rate = []
-    
-    h2h_records = {} # (teamA, teamB) -> list of results (1 if teamA won, 0 otherwise)
-
-    for idx, row in df.iterrows():
-        h_team = row['home_team']
-        a_team = row['away_team']
-        
-        # Get historical outcomes strictly BEFORE this match (.shift logic)
-        h_hist = team_history.get(h_team, [])
-        a_hist = team_history.get(a_team, [])
-        
-        # Rolling Win % (Last 3 & Last 5)
-        hf3 = np.mean(h_hist[-3:]) if len(h_hist) >= 1 else 0.50
-        af3 = np.mean(a_hist[-3:]) if len(a_hist) >= 1 else 0.50
-        hf5 = np.mean(h_hist[-5:]) if len(h_hist) >= 1 else 0.50
-        af5 = np.mean(a_hist[-5:]) if len(a_hist) >= 1 else 0.50
-        
-        # Win Streaks
-        h_strk = 0
-        for res in reversed(h_hist):
-            if res == 1: h_strk += 1
-            else: break
-            
-        a_strk = 0
-        for res in reversed(a_hist):
-            if res == 1: a_strk += 1
-            else: break
-            
-        # Head-to-Head Win Rate
-        h2h_key = tuple(sorted([h_team, a_team]))
-        h2h_list = h2h_records.get(h2h_key, [])
-        if h2h_list:
-            h2h_win_p = sum(1 for winner in h2h_list if winner == h_team) / len(h2h_list)
-        else:
-            h2h_win_p = 0.50
-            
-        home_form_3.append(round(hf3, 3))
-        away_form_3.append(round(af3, 3))
-        home_form_5.append(round(hf5, 3))
-        away_form_5.append(round(af5, 3))
-        home_streak.append(h_strk)
-        away_streak.append(a_strk)
-        h2h_home_win_rate.append(round(h2h_win_p, 3))
-        
-        # Record outcome AFTER feature calculation
-        winner = h_team if row['score_margin'] > 0 else a_team
-        h_res = 1 if winner == h_team else 0
-        a_res = 1 if winner == a_team else 0
-        
-        if h_team not in team_history: team_history[h_team] = []
-        if a_team not in team_history: team_history[a_team] = []
-        
-        team_history[h_team].append(h_res)
-        team_history[a_team].append(a_res)
-        
-        if h2h_key not in h2h_records: h2h_records[h2h_key] = []
-        h2h_records[h2h_key].append(winner)
-
-    # Attach engineered features
-    df['feat_home_form_last3'] = home_form_3
-    df['feat_away_form_last3'] = away_form_3
-    df['feat_home_form_last5'] = home_form_5
-    df['feat_away_form_last5'] = away_form_5
-    df['feat_form_diff_last5'] = df['feat_home_form_last5'] - df['feat_away_form_last5']
-    df['feat_home_win_streak'] = home_streak
-    df['feat_away_win_streak'] = away_streak
-    df['feat_h2h_home_win_rate'] = h2h_home_win_rate
-    df['feat_rest_days_diff'] = df['home_rest_days'] - df['away_rest_days']
-    
-    # Save Versioned Feature Table
-    df.to_parquet(PARQUET_PATH, index=False)
-    df.to_csv(CSV_PATH, index=False)
-    
-    print(f"[OK] Exported versioned feature table: {PARQUET_PATH} ({len(df)} rows, {len(df.columns)} columns)")
-    return df
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 5. Task 5: Time-Based Train/Hold-Out Split
-# ─────────────────────────────────────────────────────────────────────────────
-
-def get_time_split(df: pd.DataFrame, cut_year: int = 2024) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    """
-    Reusable strict time-based train/hold-out split function.
-    Train Set: Seasons < cut_year (1983–2023)
-    Hold-Out Set: Seasons >= cut_year (2024–2025)
-    """
-    train_df = df[df['season'] < cut_year].copy()
-    holdout_df = df[df['season'] >= cut_year].copy()
-    
-    return train_df, holdout_df
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Main Entry Point
-# ─────────────────────────────────────────────────────────────────────────────
-
 def main():
+    ensure_directories()
+    logger.info("Initializing AFL Enterprise Data Foundations Pipeline...")
+    
+    with ExecutionTimer("Task 1: Data Inventory & Quality Audit"):
+        df_players_raw, df_info_raw, df_matches_raw = load_raw_afl_datasets()
+        inventory = inspect_raw_datasets(DATA_RAW_DIR)
+        quality_audit = audit_data_quality(df_players_raw, df_matches_raw)
+        era_shifts = analyze_historical_eras_and_shifts(df_matches_raw)
+
+    with ExecutionTimer("Preprocessing & Cleaning"):
+        df_players = preprocess_player_data(df_players_raw, df_info_raw)
+        df_matches = preprocess_match_data(df_matches_raw)
+        save_dataframe(df_matches, DATA_PROCESSED_DIR / "afl_cleaned_dataset.csv")
+
+    with ExecutionTimer("Task 2: Applying Target Definitions"):
+        df_matches, df_players = apply_target_definitions(df_matches, df_players)
+
+    with ExecutionTimer("Task 4: Building Rolling Feature Table"):
+        feature_df = build_team_rolling_features(df_matches, ROLLING_WINDOWS)
+        encoded_df = encode_categorical_features(feature_df)
+        feature_meta = generate_feature_dictionary(encoded_df)
+        
+        save_dataframe(encoded_df, DATA_FEATURES_DIR / "afl_feature_table.parquet", index=False)
+        save_dataframe(encoded_df, DATA_FEATURES_DIR / "afl_feature_table.csv", index=False)
+
+    with ExecutionTimer("Task 3: Generating Publication Figures"):
+        saved_figs = generate_all_publication_figures(df_matches, df_players, encoded_df)
+
+    with ExecutionTimer("Task 5: Time-Based Split & Zero-Leakage Audit"):
+        train_df, val_df, test_df = create_time_split(encoded_df, train_end_year=2022, val_year=2023, test_start_year=2024)
+        leakage_report = verify_zero_leakage(train_df, val_df, test_df)
+
+    print("\n============================================================")
+    print("  PRODUCTION DATA PIPELINE COMPLETED SUCCESSFULLY")
     print("============================================================")
-    print("  WEEK 6 DAY 1: AFL DATA FOUNDATIONS & FEATURE ENGINEERING")
-    print("============================================================")
-    
-    # Task 1
-    df_players, df_info, df_matches = load_raw_afl_datasets()
-    inventory_report = perform_data_quality_checks(df_players, df_info, df_matches)
-    print(f"\n1. DATA INVENTORY & QUALITY AUDIT:")
-    print(f"   • Match Level Records   : {inventory_report['match_level_rows']} matches")
-    print(f"   • Player Season Records : {inventory_report['player_season_rows']} rows")
-    print(f"   • Seasons Covered       : {inventory_report['seasons_covered']}")
-    
-    # Task 2
-    df_matches, df_players = apply_target_definitions(df_matches, df_players)
-    print(f"\n2. PREDICTION TARGETS CONTRACT DEFINED:")
-    print(f"   • Match Winner Target   : `target_home_win` (Binary Classification)")
-    print(f"   • Margin Target         : `target_score_margin` (Regression)")
-    print(f"   • Player Composite      : `composite_fantasy_score` (SuperCoach Formula)")
-    
-    # Task 3
-    eda_summary = perform_eda_analysis(df_matches, df_players)
-    print(f"\n3. EXPLORATORY DATA ANALYSIS HIGHLIGHTS:")
-    print(f"   • Historical Home Win Rate : {eda_summary['historical_home_win_rate_percent']}%")
-    print(f"   • Average Home Margin      : +{eda_summary['average_home_margin_points']} pts")
-    print(f"   • Top Disposal Leaders     : {', '.join(eda_summary['top_historical_disposal_leaders'][:3])}")
-    
-    # Task 4
-    feature_df = build_leakage_free_feature_table(df_matches)
-    
-    # Task 5
-    train_df, holdout_df = get_time_split(feature_df, cut_year=2024)
-    print(f"\n5. REPRODUCIBLE TIME-BASED SPLIT SUMMARY:")
-    print(f"   • Train Set (1983-2023)    : {len(train_df)} matches ({len(train_df)/len(feature_df)*100:.1f}%)")
-    print(f"   • Hold-Out Set (2024-2025) : {len(holdout_df)} matches ({len(holdout_df)/len(feature_df)*100:.1f}%)")
-    print(f"   • Realistic Accuracy Ceiling: 68% - 72% (Sports outcome inherent variance & injury noise)")
-    
-    print("\n[SUCCESS] Day 1 AFL Data Foundations Pipeline Complete!")
+    print(f"  • Raw Datasets Processed  : {len(inventory)} files in data/raw/")
+    print(f"  • Feature Table Exported  : {DATA_FEATURES_DIR / 'afl_feature_table.parquet'} ({len(encoded_df)} rows x {len(encoded_df.columns)} cols)")
+    print(f"  • Publication Figures Saved: {len(saved_figs)} PNG charts in outputs/figures/")
+    print(f"  • Zero-Leakage Status    : {leakage_report['leakage_verification_status']}")
+    print(f"  • Time Split Breakdown   : Train={len(train_df)}, Val={len(val_df)}, Test={len(test_df)}")
 
 
 if __name__ == "__main__":
