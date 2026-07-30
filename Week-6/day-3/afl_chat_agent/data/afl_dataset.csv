@@ -1,0 +1,21 @@
+entity_type,team,player,stat_type,value,context,season
+team,Collingwood,,wins,18,Home and Away,2023
+team,Collingwood,,losses,5,Home and Away,2023
+team,Collingwood,,ladder_position,1,Home and Away,2023
+team,Brisbane Lions,,wins,17,Home and Away,2023
+team,Brisbane Lions,,losses,6,Home and Away,2023
+team,Brisbane Lions,,ladder_position,2,Home and Away,2023
+team,Carlton,,wins,13,Home and Away,2023
+team,Carlton,,losses,9,Home and Away,2023
+team,Carlton,,ladder_position,5,Home and Away,2023
+player,Collingwood,Nick Daicos,disposals,35,Round 1,2023
+player,Collingwood,Nick Daicos,goals,2,Round 1,2023
+player,Collingwood,Brody Mihocek,goals,47,Total Season,2023
+player,Brisbane Lions,Lachie Neale,disposals,31,Round 1,2023
+player,Brisbane Lions,Lachie Neale,goals,0,Round 1,2023
+player,Brisbane Lions,Joe Daniher,goals,4,Round 1,2023
+player,Carlton,Charlie Curnow,goals,78,Total Season,2023
+player,Carlton,Patrick Cripps,disposals,28,Round 1,2023
+match,Collingwood,,result,Collingwood 12.14 (86) def Brisbane Lions 11.16 (82),Grand Final,2023
+match,Brisbane Lions,,result,Collingwood 12.14 (86) def Brisbane Lions 11.16 (82),Grand Final,2023
+match,Carlton,,result,Brisbane Lions 11.13 (79) def Carlton 9.9 (63),Preliminary Final,2023

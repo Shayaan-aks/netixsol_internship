@@ -1,0 +1,12 @@
+entity_type,team,player,stat_type,value,context,season
+team,Collingwood,,wins,18,Home and Away,2023
+team,Collingwood,,losses,5,Home and Away,2023
+team,Collingwood,,ladder_position,1,Home and Away,2023
+team,Brisbane Lions,,wins,17,Home and Away,2023
+team,Carlton,,wins,13,Home and Away,2023
+player,Collingwood,Nick Daicos,disposals,35,Round 1,2023
+player,Collingwood,Brody Mihocek,goals,47,Total Season,2023
+player,Brisbane Lions,Lachie Neale,disposals,31,Round 1,2023
+player,Carlton,Charlie Curnow,goals,78,Total Season,2023
+match,Collingwood,,score,86,Grand Final vs Brisbane,2023
+match,Brisbane Lions,,score,82,Grand Final vs Collingwood,2023
