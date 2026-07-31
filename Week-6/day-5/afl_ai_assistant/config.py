@@ -11,10 +11,7 @@ DATASET_PATH = os.path.join(DATA_DIR, "afl_dataset.csv")
 ARTICLES_DIR = os.path.join(DATA_DIR, "articles")
 LOGS_DIR = os.path.join(BASE_DIR, "logs")
 
-TRACE_LOG_PATH = os.path.join(LOGS_DIR, "graph_trace.log")
-ROUTER_LOG_PATH = os.path.join(LOGS_DIR, "router.log")
-TOOL_LOG_PATH = os.path.join(LOGS_DIR, "tool_calls.log")
-
+STRUCTURED_LOG_PATH = os.path.join(LOGS_DIR, "assistant.log")
 EVAL_DIR = os.path.join(BASE_DIR, "evaluation")
 EVAL_REPORT_PATH = os.path.join(EVAL_DIR, "report.md")
 

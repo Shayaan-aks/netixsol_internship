@@ -2,7 +2,7 @@ import sys
 from colorama import init, Fore, Style
 from langgraph.checkpoint.memory import MemorySaver
 from graph.graph import graph_builder
-from config import OPENAI_API_KEY
+from config import GOOGLE_API_KEY
 import warnings
 
 warnings.filterwarnings('ignore')
@@ -13,8 +13,8 @@ def main():
     print(Fore.GREEN + Style.BRIGHT + "  AFL AI System (Week 6 Day 4)")
     print(Fore.GREEN + Style.BRIGHT + "========================================")
     
-    if not OPENAI_API_KEY or OPENAI_API_KEY == "your_openai_api_key_here":
-        print(Fore.RED + "Error: OPENAI_API_KEY is not set in .env")
+    if not GOOGLE_API_KEY or GOOGLE_API_KEY == "your_openai_api_key_here":
+        print(Fore.RED + "Error: GOOGLE_API_KEY is not set in .env")
         sys.exit(1)
         
     memory = MemorySaver()

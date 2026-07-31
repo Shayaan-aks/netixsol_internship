@@ -1,8 +1,8 @@
 import os
 from pydantic import BaseModel, Field
-from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from prompts.router_prompt import ROUTER_PROMPT
-from config import OPENAI_API_KEY, LLM_MODEL
+from config import GOOGLE_API_KEY, LLM_MODEL
 
 class RouterOutput(BaseModel):
     intent: str = Field(description="The classified intent of the user query.")
@@ -10,8 +10,8 @@ class RouterOutput(BaseModel):
     reasoning: str = Field(description="Reasoning for the classification.")
 
 def get_router():
-    api_key = OPENAI_API_KEY if OPENAI_API_KEY else "dummy"
-    llm = ChatOpenAI(model=LLM_MODEL, temperature=0, api_key=api_key)
+    api_key = GOOGLE_API_KEY if GOOGLE_API_KEY else "dummy"
+    llm = ChatGoogleGenerativeAI(model=LLM_MODEL, temperature=0, api_key=api_key)
     structured_llm = llm.with_structured_output(RouterOutput)
     return structured_llm
 

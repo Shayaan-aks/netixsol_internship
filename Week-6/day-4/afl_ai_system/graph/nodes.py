@@ -1,8 +1,8 @@
-from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from graph.state import AgentState
 from graph.router import route_query
-from config import LLM_MODEL, OPENAI_API_KEY
+from config import LLM_MODEL, GOOGLE_API_KEY
 from prompts.system_prompt import SYSTEM_PROMPT
 from validation.validator import validate_output
 from validation.ambiguity import check_ambiguity
@@ -11,8 +11,8 @@ from tools.retrieval_tools import get_structured_stat, retrieve_news_article
 from tools.prediction_tools import predict_match, predict_player
 
 # Fail gracefully
-api_key = OPENAI_API_KEY if OPENAI_API_KEY else "dummy_key"
-llm = ChatOpenAI(model=LLM_MODEL, temperature=0, api_key=api_key)
+api_key = GOOGLE_API_KEY if GOOGLE_API_KEY else "dummy_key"
+llm = ChatGoogleGenerativeAI(model=LLM_MODEL, temperature=0, api_key=api_key)
 
 def router_node(state: AgentState):
     messages = state.get("messages", [])
