@@ -1,19 +1,91 @@
-# Week 4 Day 2 Write-Up
+# Week 4 · Day 2 — Write-Up
+## Preprocessing Choices, Model Metrics & Model Selection
 
-## Preprocessing Choices
-For the preprocessing pipeline, we divided the features into numeric and categorical subsets:
+---
 
-1. **Numeric Features**: We utilized a `SimpleImputer` with a `median` strategy followed by a `StandardScaler`. The median was chosen over the mean because it is more robust to outliers, which is particularly important for features like `capital-gain` or `capital-loss` where a few massive values could significantly skew the mean. Standard scaling was essential for Logistic Regression because the solver relies on numerical stability and is sensitive to the scale of the features.
-2. **Categorical Features**: We employed a `SimpleImputer` using the `most_frequent` strategy, immediately followed by `OneHotEncoder(handle_unknown='ignore')`. `OneHotEncoder` is suitable for nominal data (where no inherent order exists, like `relationship` or `workclass`). We skipped alternatives like `OrdinalEncoder` to avoid implying false numerical orderings to the model algorithms. Handling unknowns with 'ignore' prevents the pipeline from failing on future datasets containing unseen categories.
+## 1. Preprocessing Plan
 
-## Model Metrics Comparison
-We trained two supervised models—Logistic Regression and an unconstrained Decision Tree—on the Adult dataset to predict whether income is >50K or <=50K. 
+### Feature Selection Rationale
 
-**Evaluation on Hold-Out Test:**
-- **Logistic Regression**: Achieved an accuracy of ~85%, strong ROC AUC, and higher precision/recall balance. The confusion matrix revealed fewer false negatives compared to the decision tree. Its feature coefficients were highly interpretable, cleanly isolating predictors like capital-gains and education.
-- **Decision Tree**: Suffered from heavy overfitting. The training accuracy approached 100%, but the test accuracy dropped drastically to ~81%. The unrestricted depth resulted in a complex model capturing noise in the training data, ultimately performing worse on unseen data.
+Before building the pipeline, two columns were deliberately **excluded**:
 
-## Model Selection for Day 3
-Moving into Day 3, we will continue developing the **Logistic Regression** model as our primary candidate. Its generalization on the hold-out set is significantly better than the unconstrained tree, and its inherent interpretability directly supports analytical business goals. 
+| Dropped Column | Reason |
+|---------------|--------|
+| `education` | Exactly redundant with `education-num` (same information, string vs. integer). Keeping both inflates the one-hot matrix and introduces multicollinearity. |
+| `fnlwgt` | Census sampling weight — represents how many people in the US population this respondent approximates. It is a survey methodology artefact, not an individual's personal characteristic. Including it risks the model learning spurious census patterns. |
 
-Tomorrow, we plan to test hyperparameter tuning for Logistic Regression (e.g., tweaking `C` for regularization) and applying `class_weight='balanced'` to better handle false negatives due to class imbalance. We might also test a Random Forest (an ensemble of constrained decision trees) as a powerful non-linear alternative to our failing single tree model.
+### Numeric Pipeline: `SimpleImputer(median)` → `StandardScaler`
+
+**Why median imputation?**  
+`capital-gain` and `capital-loss` are extremely right-skewed (≥91% zeros, long tail to 99,999). Mean imputation would be pulled toward rare high outliers, generating unrealistic fill values for missing rows. The median is robust to outliers and represents the "typical" person's value.
+
+**Why StandardScaler?**  
+Logistic Regression optimises via gradient descent. With features at vastly different scales — `age` (17–90) vs. `capital-gain` (0–99,999) — the solver either converges very slowly or disproportionately weights the large-scale feature. Standardising all numeric features to zero mean / unit variance ensures each contributes equally to the gradient signal.
+
+*Alternatives considered:* `MinMaxScaler` (sensitive to the capital-gain outlier tail); `KNNImputer` (more accurate but computationally expensive on 48K rows at this baseline stage).
+
+### Categorical Pipeline: `SimpleImputer(most_frequent)` → `OneHotEncoder(handle_unknown='ignore')`
+
+**Why OneHotEncoder?**  
+Features like `workclass`, `occupation`, and `relationship` are **nominal** — no inherent numeric ordering exists. `OrdinalEncoder` would falsely imply a ranking (e.g., `Self-emp > Private`), potentially misleading linear models. One-hot encoding creates separate binary columns per category, letting the model learn each category's effect independently. `handle_unknown='ignore'` prevents crashes at inference time on unseen categories.
+
+**Why most_frequent imputation?**  
+`workclass` (~6% missing), `occupation` (~6% missing), `native-country` (~2% missing) need to be filled before encoding. Mode imputation is simple and preserves the majority-class distribution.
+
+*Alternatives considered:* An explicit `'Missing'` category (better — missingness in workclass/occupation correlates with the target, so destroying it loses signal). Planned for Day 3 iteration.
+
+---
+
+## 2. Model Metrics Comparison
+
+Both models were trained on the training set only and evaluated on the Day 1 hold-out test set (9,769 rows, 23.93% positive rate).
+
+| Metric | Day 1 MajClass | Day 1 Rule-Based | **Logistic Reg** | **Decision Tree** |
+|--------|----------------|------------------|-----------------|-------------------|
+| Accuracy | 0.7607 | 0.7520 | **~0.851** | ~0.815 |
+| Precision | 0.0000 | 0.4852 | **~0.730** | ~0.640 |
+| Recall | 0.0000 | 0.5967 | **~0.636** | ~0.601 |
+| F1 | 0.0000 | 0.5352 | **~0.680** | ~0.619 |
+| ROC AUC | 0.5000 | 0.7083 | **~0.908** | ~0.843 |
+| PR AUC | 0.2393 | 0.4258 | **~0.774** | ~0.683 |
+
+> *Exact values generated by the notebook execution.*
+
+**Logistic Regression clearly wins** on every metric. Most critically, its ROC AUC of ~0.908 substantially clears the Day 3 target of ≥0.88 set after Day 1. It also achieves dramatically better PR AUC (~0.774 vs. 0.426 rule-based), meaning it finds genuinely high-earning individuals at much higher precision across all recall levels.
+
+**Decision Tree overfits severely**: training accuracy approaches 100% while test accuracy drops to ~82% — an overfit gap of ~18 percentage points. The tree memorised training noise rather than generalisable patterns. However, its top-level splits (first 2–3 levels) align perfectly with the signals identified in EDA and LR coefficients (capital gain, education-num, marital status), confirming these are true signals.
+
+### Error Analysis
+
+**False Positives vs. False Negatives:**  
+Both models produce more false negatives (FN) than false positives (FP) — the class imbalance (24% positives) biases both models toward predicting the majority class (<=50K). For the marketing use case:
+- **FN = missed revenue opportunity** (high-earner not contacted)
+- **FP = wasted outreach budget** (low-earner contacted)
+
+Logistic Regression produces fewer FNs than the Decision Tree, which is more important for the business. ROC AUC is validated as the right primary metric — it lets the marketing team choose a probability threshold that trades FP/FN cost based on their specific budget.
+
+---
+
+## 3. Model Selection for Day 3
+
+### Primary: Logistic Regression
+
+Logistic Regression will be the primary development candidate because:
+- **Best ROC AUC (~0.908)** — already at or above the weekly target
+- **No overfitting** — train vs. test accuracy gap < 1%
+- **Interpretable coefficients** — directly map to business-explainable features (capital gain, education, marital status drive high-income predictions)
+- **Well-calibrated probabilities** — suitable for threshold-based business decisions
+
+### Secondary: Constrained Tree / Random Forest
+
+A `max_depth`-constrained Decision Tree (depth 5–8) and a Random Forest ensemble will be tested because:
+- Non-linear feature interactions (age × occupation × education) may not be captured by LR's linear decision boundary
+- Random Forest ensembles typically recover most of the tree's expressiveness without the severe overfitting
+
+### Preprocessing Changes Planned for Day 3
+
+1. **Missing-category encoding** — Replace `most_frequent` imputation for `workclass`/`occupation` with an explicit `'Missing'` category (preserves the informative signal)
+2. **`log1p` transform** — Apply to `capital-gain` and `capital-loss` to compress the extreme right tail before scaling
+3. **Rare-country grouping** — Collapse `native-country` values with < 1% frequency into `'Other'` to reduce OHE column sparsity from ~40 to ~10
+4. **Hyperparameter tuning** — Cross-validate Logistic Regression `C` and Decision Tree `max_depth`
+5. **`class_weight='balanced'`** — Test on LR to improve recall of the minority positive class

@@ -10,16 +10,22 @@ CLASS TARGET BREAKDOWN:
 
 NOTABLE FEATURE DISTRIBUTIONS:
 1. AGE DISPARITY:
-   High-earners lean significantly older. The mean age of individuals 
-   making >50K is 44.3 years old, compared to 
-   36.9 years old for those making <=50K.
+   High-earners lean significantly older. Mean age >50K = 44.3 yrs
+   vs <=50K = 36.9 yrs. A ~7-year gap highlights age as a
+   meaningful (though non-linear) predictor.
 
 2. EDUCATION IMPACT:
-   Higher education strictly scales with the target class. 
-   41.3% of Bachelors degree holders belong to the positive 
-   high-earning class, compared to only 15.9% of High School graduates.
+   41.3% of Bachelor's holders earn >50K vs only 15.9% of
+   HS graduates -- a ~25-percentage-point lift demonstrating education-num
+   as a strong ordinal signal.
 
 3. MARITAL STATUS CORRELATION:
-   Being married ('Married-civ-spouse') shows a heavy correlation with the 
-   positive class, yielding a high-earner proportion of 44.6%.
+   'Married-civ-spouse' individuals have a 44.6% high-earner rate,
+   nearly 2x the dataset average -- suggesting household structure
+   captures socioeconomic effects not explained by occupation alone.
+
+MISSING VALUES:
+  * workclass      : 2,799 missing (5.7%)
+  * occupation     : 2,809 missing (5.8%)
+  * native-country : 857 missing (1.8%)
 ============================================================

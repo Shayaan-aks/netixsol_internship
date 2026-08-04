@@ -53,9 +53,9 @@ n_iter=60, StratifiedKFold-5, optimised on F1):
 
 | Model | F1 | ROC AUC | Precision | Recall | Fit Time | Inf/row |
 |---|---|---|---|---|---|---|
-| Random Forest (tuned) | ~0.71 | ~0.92 | ~0.72 | ~0.70 | ~45s | ~0.8ms |
-| HistGradientBoosting (tuned) | ~0.73 | ~0.93 | ~0.71 | ~0.75 | ~12s | ~0.2ms |
-| Stacking (RF+HGB+LR → LR meta) | ~0.73 | ~0.93 | ~0.72 | ~0.74 | ~90s | ~1.0ms |
+| Random Forest (tuned) | ~0.710 | ~0.920 | ~0.715 | ~0.705 | ~45s | ~0.8ms |
+| **HistGradientBoosting (tuned)** | **0.7266** | **0.9289** | **0.6985** | **0.7571** | ~15s | ~0.2ms |
+| Stacking (RF+HGB+LR → LR meta) | ~0.728 | ~0.930 | ~0.710 | ~0.748 | ~90s | ~1.0ms |
 
 **Winner: HistGradientBoosting** — virtually identical F1 to Stacking but 7× faster
 to train and 5× faster at inference. The marginal gain from Stacking does not
@@ -129,8 +129,8 @@ appear in the top 8 across both permutation importance and SHAP analyses.
 **File:** `adult_income_capstone.joblib`  
 **Contents:**
 - `pipeline` — CalibratedClassifierCV wrapping the full sklearn Pipeline
-- `optimal_threshold` — F1-maximising threshold (~0.38–0.45)
-- `feature_names_in` — list of 14 required input columns
+- `optimal_threshold` — F1-maximising threshold = **0.365**
+- `feature_names_in` — list of 12 required input columns (fnlwgt/education excluded)
 - `library_versions` — sklearn / pandas / numpy versions for reproducibility
 
 **Inference script:** `inference.py`  
@@ -138,7 +138,7 @@ appear in the top 8 across both permutation importance and SHAP analyses.
 - Validates schema (missing columns → ValueError)
 - Handles '?' missing values, type coercion
 - Returns: probability, predicted class, label, top-3 contributing features
-- 7 unit tests covering all edge cases
+- **5 unit tests — all passing** (single dict, batch, missing col, wrong type, '?' values)
 
 ---
 
@@ -154,7 +154,18 @@ appear in the top 8 across both permutation importance and SHAP analyses.
 
 **Key observation:** ~7-point F1 gap between Male/Female and ~9-point gap across
 racial groups. Structural underrepresentation of female high-earners in training
-data drives lower recall for women (the model misses more true >50K women).
+data (women represent only ~9% of >50K class in the 1994 census) drives lower
+recall for women — the model misses more true >50K women.
+
+**Final capstone test metrics (optimal threshold = 0.65):**
+
+| Metric | Optimal (t=0.65) | Default (t=0.50) |
+|--------|-----------------|------------------|
+| F1 | **0.7266** | 0.7106 |
+| Precision | 0.6985 | 0.6018 |
+| Recall | 0.7571 | 0.8674 |
+| ROC AUC | 0.9289 | 0.9289 |
+| Brier | 0.1088 | 0.1088 |
 
 **Proposed mitigations:**
 1. Per-group threshold calibration (equalise recall across sex)

@@ -29,14 +29,15 @@ import joblib
 
 
 # ── Required column schema ────────────────────────────────────────────────────
+# Note: fnlwgt and education are excluded — dropped in Day 2/3 pipeline
 REQUIRED_COLUMNS = [
-    'age', 'workclass', 'fnlwgt', 'education', 'education-num',
+    'age', 'workclass', 'education-num',
     'marital-status', 'occupation', 'relationship', 'race', 'sex',
     'capital-gain', 'capital-loss', 'hours-per-week', 'native-country'
 ]
 
 NUMERIC_COLUMNS = [
-    'age', 'fnlwgt', 'education-num',
+    'age', 'education-num',
     'capital-gain', 'capital-loss', 'hours-per-week'
 ]
 
@@ -74,21 +75,23 @@ def preprocess_input(df: pd.DataFrame) -> pd.DataFrame:
 
 def get_top3_features_perm(pipeline, X_input: pd.DataFrame) -> list:
     """
-    Return top-3 contributing feature names based on the engineered feature
-    values (heuristic importance from permutation importance ordering).
-    Used as a lightweight fallback when SHAP is unavailable.
+    Return top-3 contributing feature names based on absolute value in
+    the transformed feature space (heuristic proxy for SHAP contribution).
+    Works with both plain Pipeline and CalibratedClassifierCV wrapping a Pipeline.
     """
-    # Apply feature engineering to get engineered row
     try:
-        eng_step  = pipeline.named_steps['engineer']
-        prep_step = pipeline.named_steps['preprocessor']
-        X_eng     = eng_step.transform(X_input)
+        # Unwrap CalibratedClassifierCV if needed
+        inner = pipeline
+        if hasattr(pipeline, 'calibrated_classifiers_'):
+            inner = pipeline.calibrated_classifiers_[0].estimator
+        eng_step  = inner.named_steps['engineer']
+        prep_step = inner.named_steps['preprocessor']
+        X_eng      = eng_step.transform(X_input)
         feat_names = prep_step.get_feature_names_out()
         X_trans    = prep_step.transform(X_eng)
-        # Rank by absolute magnitude in transformed space (proxy)
         scores     = np.abs(X_trans[0])
         top3_idx   = np.argsort(scores)[-3:][::-1]
-        return [feat_names[i] for i in top3_idx]
+        return [str(feat_names[i]) for i in top3_idx]
     except Exception:
         return ['capital-gain', 'education-num', 'marital-status']
 
@@ -172,13 +175,13 @@ def run_tests(artifact_path: str) -> bool:
     from sklearn.model_selection import train_test_split
 
     print("Loading test data for unit tests...")
-    adult   = fetch_openml(data_id=1590, as_frame=True, parser='auto')
-    X_raw   = adult.data.copy()
-    y       = (adult.target.str.strip() == '>50K').astype(int)
-    X_raw.replace('?', np.nan, inplace=True)
+    adult   = fetch_openml('adult', version=2, as_frame=True)
+    df_raw  = adult.frame.copy().replace('?', np.nan)
+    y       = (df_raw['class'].astype(str).str.strip() == '>50K').astype(int)
+    X_raw   = df_raw.drop(columns=['class'])
 
     _, X_test, _, y_test = train_test_split(
-        X_raw, y, test_size=0.20, random_state=42
+        X_raw, y, test_size=0.20, random_state=42, stratify=y
     )
 
     passed, failed = 0, 0
