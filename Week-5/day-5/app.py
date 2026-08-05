@@ -84,7 +84,7 @@ class OnboardResponse(BaseModel):
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.middleware("http")
-async import_telemetry_middleware(request: Request, call_next):
+async def telemetry_middleware(request: Request, call_next):
     start_time = time.time()
     METRICS_STORE["total_requests"] += 1
     
