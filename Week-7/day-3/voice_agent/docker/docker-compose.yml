@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  voice-agent:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=production
+      - LOG_LEVEL=INFO
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY}
+      - FISH_AUDIO_API_KEY=${FISH_AUDIO_API_KEY}
+    restart: unless-stopped

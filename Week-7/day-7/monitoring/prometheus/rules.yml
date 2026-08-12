@@ -1,0 +1,143 @@
+groups:
+  - name: slo_latency
+    interval: 30s
+    rules:
+      # ── STT Latency SLO ─────────────────────────────────────────────────
+      - alert: STTLatencyHigh
+        expr: histogram_quantile(0.95, rate(agent_request_latency_seconds_bucket{handler="/v1/voice/chat"}[5m])) > 0.6
+        for: 2m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "STT P95 latency exceeding 600ms SLO"
+          description: "P95 STT latency is {{ $value | humanizeDuration }}. SLO target: 600ms."
+          runbook: "https://docs.netixsol.com/runbooks/stt-latency"
+
+      # ── LLM First Token SLO ───────────────────────────────────────────────
+      - alert: LLMLatencyHigh
+        expr: histogram_quantile(0.95, rate(agent_llm_latency_seconds_bucket[5m])) > 0.7
+        for: 2m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "LLM P95 first-token latency exceeding 700ms SLO"
+          description: "LLM P95 latency: {{ $value | humanizeDuration }}. SLO: 700ms."
+
+      # ── End-to-End Response SLO ───────────────────────────────────────────
+      - alert: E2ELatencyCritical
+        expr: histogram_quantile(0.95, rate(agent_request_latency_seconds_bucket[5m])) > 2.0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "🚨 End-to-end P95 response time exceeding 2s SLO"
+          description: "E2E latency: {{ $value | humanizeDuration }}. Immediate investigation required."
+
+  - name: slo_availability
+    interval: 60s
+    rules:
+      # ── Error Rate SLO (99.9% availability) ──────────────────────────────
+      - alert: HighErrorRate
+        expr: |
+          rate(http_requests_total{status=~"5.."}[5m])
+          /
+          rate(http_requests_total[5m]) > 0.001
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Error rate exceeding 99.9% SLO threshold"
+          description: "Error rate: {{ $value | humanizePercentage }}. Budget: 0.1%."
+          runbook: "https://docs.netixsol.com/runbooks/high-error-rate"
+
+      # ── Service Down ──────────────────────────────────────────────────────
+      - alert: AgentServiceDown
+        expr: up{job="real_estate_agent"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "🚨 Real Estate AI Agent is DOWN"
+          description: "Agent service has been unreachable for > 1 minute. IMMEDIATE ACTION REQUIRED."
+
+  - name: slo_business
+    interval: 60s
+    rules:
+      # ── Low Booking Success Rate ──────────────────────────────────────────
+      - alert: BookingSuccessRateLow
+        expr: |
+          rate(agent_bookings_total{status="success"}[1h])
+          /
+          rate(agent_bookings_total[1h]) < 0.8
+        for: 10m
+        labels:
+          severity: warning
+          team: business
+        annotations:
+          summary: "Booking success rate below 80%"
+          description: "Booking success: {{ $value | humanizePercentage }}. Calendar integration may be failing."
+
+      # ── Security Violation Spike ──────────────────────────────────────────
+      - alert: SecurityViolationSpike
+        expr: rate(agent_security_violations_total[5m]) > 1
+        for: 2m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: "Spike in security violations detected"
+          description: "{{ $value }} security violations/sec. Possible attack in progress."
+
+      # ── High Hallucination Rate ───────────────────────────────────────────
+      - alert: HallucinationRateHigh
+        expr: rate(agent_hallucinations_total[1h]) > 0.05
+        for: 15m
+        labels:
+          severity: warning
+          team: ai
+        annotations:
+          summary: "Agent hallucination rate above 5%"
+          description: "Hallucination rate: {{ $value | humanizePercentage }}. RAG retrieval may be degraded."
+
+  - name: infrastructure
+    interval: 30s
+    rules:
+      # ── High Request Rate ────────────────────────────────────────────────
+      - alert: HighRequestVolume
+        expr: rate(http_requests_total[1m]) > 100
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High request volume — consider scaling"
+          description: "{{ $value }} req/s in the last minute. Consider adding replicas."
+
+      # ── API Failures ─────────────────────────────────────────────────────
+      - alert: CalendarAPIFailure
+        expr: rate(agent_calendar_failures_total[5m]) > 0
+        for: 3m
+        labels:
+          severity: warning
+          team: integrations
+        annotations:
+          summary: "Google Calendar API failures detected"
+          description: "Calendar is failing. Appointments may not be booking correctly."
+
+      - alert: RAGMissRateHigh
+        expr: |
+          rate(agent_rag_queries_total{result="miss"}[10m])
+          /
+          rate(agent_rag_queries_total[10m]) > 0.3
+        for: 5m
+        labels:
+          severity: warning
+          team: ai
+        annotations:
+          summary: "RAG miss rate above 30%"
+          description: "Knowledge base may need re-indexing. {{ $value | humanizePercentage }} queries are missing."

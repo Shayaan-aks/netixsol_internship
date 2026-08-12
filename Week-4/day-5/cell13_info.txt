@@ -1,0 +1,16 @@
+﻿ERROR: TypeError only 0-dimensional arrays can be converted to Python scalars
+SOURCE: # ΓöÇΓöÇ SHAP local explanations ΓÇö 3 individuals ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+# Find: 1 True Positive, 1 False Positive, 1 False Negative
+
+proba_test = final_model.predict_proba(X_test_raw)[:, 1]
+y_pred_test = (proba_test >= 0.5).astype(int)
+
+tp_mask = (y_pred_test == 1) & (y_test.values == 1)
+fp_mask = (y_pred_test == 1) & (y_test.values == 0)
+fn_mask = (y_pred_test == 0) & (y_test.values == 1)
+
+tp_idx = np.where(tp_mask)[0][0]  # first True Positive
+fp_idx = np.where(fp_mask)[0][0]  # first False Positive
+fn_idx = np.where(fn_mask)[0][0]  # first False Negative
+
+X_test_eng_arr = engineer_f

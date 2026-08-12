@@ -1,0 +1,41 @@
+﻿=== CELL 16 ===
+Smoke test (single row):
+  Input  : age=54, occupation=Other-service
+  Output : [{'probability': 0.4677, 'predicted_class': 0, 'label': '<=50K'}]
+  True label: 0
+
+=== CELL 17 ===
+Test 1 PASS: valid single row inference
+
+Test 2 PASS: batch DataFrame (5 rows)
+Test 3 PASS: missing column correctly raises ValueError (Missing required columns: ['age'])
+
+Test 4 PASS: wrong input type correctly raises TypeError (raw_input must be dict or pd.DataFrame)
+
+Test 5 PASS: "?" missing value handled gracefully
+
+Results: 5 passed / 5 total
+
+=== CELL 18 ===
+=== FINAL HOLD-OUT METRICS ===
+                              F1  Precision  Recall  ROC AUC   Brier
+Setting                                                             
+Optimal threshold (0.65)  0.7266     0.6985  0.7571   0.9289  0.1088
+Default threshold (0.50)  0.7106     0.6018  0.8674   0.9289  0.1088
+
+Classification Report (optimal threshold):
+              precision    recall  f1-score   support
+
+       <=50K       0.92      0.90      0.91      7431
+        >50K       0.70      0.76      0.73      2338
+
+    accuracy                           0.86      9769
+   macro avg       0.81      0.83      0.82      9769
+weighted avg       0.87      0.86      0.87      9769
+
+
+=== CELL 19 ===
+
+Artifact saved: d:\Netixsol_Internship\netixsol_internship\Week-4\day-5\adult_income_capstone.joblib
+Inference script: d:\Netixsol_Internship\netixsol_internship\Week-4\day-5\inference.py
+

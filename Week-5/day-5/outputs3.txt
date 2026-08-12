@@ -1,0 +1,25 @@
+﻿=== Cell 6 ===
+=== FAILURE PATTERN ANALYSIS ===
+
+  Wikipedia "Decentralized finance    " -> LIVE     (0.0s)
+  Wikipedia "Software architecture    " -> LIVE     (0.0s)
+
+  Wikipedia "Cloud computing          " -> FALLBACK (3.72s)
+
+  Wikipedia "Banking system           " -> LIVE     (6.18s)
+
+Most Common Failure: Wikipedia API timeout/disambiguation during batch runs
+Concrete Fix: Add functools.lru_cache with 24-hour TTL for Wikipedia responses
+
+Cache demo: 1st call=0.0001s, 2nd call (cached)=0.0001s -> 1x speedup
+
+
+=== Cell 8 ===
+=== SAMPLE EXECUTION LOG (from demo run) ===
+
+  [01] [Node 1: Input Validation] Sanitizing client brief...
+  [02] [Node 2: DB & Wikipedia API] Querying client DB for 'Acme Corp'...
+  [03] [Node 2: DB Query] Found: Tier='Standard Business', Past Projects=1
+  [04] [Node 2: Wikipedia API Call] Query: 'Software architecture' -> Received Wikipedia Summary.
+  [05] [Node 3: CrewAI Sub-Crew] Executing 3-A
+

@@ -1,0 +1,135 @@
+﻿=== CELL 13 ===
+# ΓöÇΓöÇ SHAP local explanations ΓÇö 3 individuals ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+# Find: 1 True Positive, 1 False Positive, 1 False Negative
+
+proba_test = final_model.predict_proba(X_test_raw)[:, 1]
+y_pred_test = (proba_test >= 0.5).astype(int)
+
+tp_mask = (y_pred_test == 1) & (y_test.values == 1)
+fp_mask = (y_pred_test == 1) & (y_test.values == 0)
+fn_mask = (y_pred_test == 0) & (y_test.values == 1)
+
+tp_idx = np.where(tp_mask)[0][0]  # first True Positive
+fp_idx = np.where(fp_mask)[0][0]  # first False Positive
+fn_idx = np.where(fn_mask)[0][0]  # first False Negative
+
+X_test_eng_arr = engineer_features(X_test_raw)
+X_test_t       = preproc_fitted.transform(X_test_eng_arr)
+
+cases = {
+    'True Positive  (correctly predicted >50K)': tp_idx,
+    'False Positive (wrongly predicted >50K)':   fp_idx,
+    'False Negative (missed >50K earner)':       fn_idx,
+}
+
+if SHAP_OK:
+    for label, idx in cases.items():
+        instance = X_test_t[idx:idx+1]
+        sv        = explainer.shap_values(instance)[0]
+        top3_feat = pd.Series(np.abs(sv), index=feat_names).nlargest(3)
+
+        prob  = proba_test[idx]
+        truth = y_test.values[idx]
+        print(f'\n--- {label} ---')
+        print(f'  Predicted prob: {prob:.3f}  |  True label: {truth}')
+        print(f'  Top-3 SHAP features: {list(top3_feat.index)}')
+        shap.waterfall_plot(
+            shap.Explanation(values=sv, base_values=explainer.expected_value,
+                             data=instance[0], feature_names=list(feat_names)),
+            max_display=8, show=False
+        )
+        plt.title(label)
+        plt.tight_layout()
+        plt.show()
+else:
+    print('SHAP not available ΓÇö showing top permutation-important features for each case.')
+    for label, idx in cases.items():
+        print(f'\n--- {label} ---')
+        row = X_test_raw.iloc[idx]
+        print(f'  Predicted prob: {proba_test[idx]:.3f} | True label: {y_test.values[idx]}')
+        print(f'  age={row["age"]}, education={row["education"]}, '
+              f'occupation={row["occupation"]}, capital-gain={row["capital-gain"]}')
+
+print("""
+Plain-English Explanations:
+  True Positive : High capital gain and long education drove this person firmly
+                  above the decision boundary ΓÇö the model correctly predicts >50K.
+  False Positive: Moderate education and full-time hours pushed this individual
+                  just above threshold, but low capital gain and part-time income
+                  sources mean actual income is <=50K.
+  False Negative: Despite a graduate-level education, very low hours worked and
+                  no investment income kept the model's probability below 0.5,
+                  causing it to miss this true >50K earner.
+""")
+
+
+=== CELL 18 ===
+# ΓöÇΓöÇ Final hold-out evaluation ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+proba_final  = final_model.predict_proba(X_test_raw)[:, 1]
+y_pred_opt   = (proba_final >= OPTIMAL_THRESHOLD).astype(int)
+y_pred_def   = (proba_final >= 0.50).astype(int)
+
+final_metrics = pd.DataFrame([
+    {
+        'Setting':    f'Optimal threshold ({OPTIMAL_THRESHOLD:.2f})',
+        'F1':         round(f1_score(y_test, y_pred_opt), 4),
+        'Precision':  round(precision_score(y_test, y_pred_opt), 4),
+        'Recall':     round(recall_score(y_test, y_pred_opt), 4),
+        'ROC AUC':    round(roc_auc_score(y_test, proba_final), 4),
+        'Brier':      round(brier_score_loss(y_test, proba_final), 4),
+    },
+    {
+        'Setting':    'Default threshold (0.50)',
+        'F1':         round(f1_score(y_test, y_pred_def), 4),
+        'Precision':  round(precision_score(y_test, y_pred_def), 4),
+        'Recall':     round(recall_score(y_test, y_pred_def), 4),
+        'ROC AUC':    round(roc_auc_score(y_test, proba_final), 4),
+        'Brier':      round(brier_score_loss(y_test, proba_final), 4),
+    },
+]).set_index('Setting')
+
+print('=== FINAL HOLD-OUT METRICS ===')
+display(final_metrics)
+print()
+print('Classification Report (optimal threshold):')
+print(classification_report(y_test, y_pred_opt, target_names=['<=50K', '>50K']))
+
+
+=== CELL 19 ===
+# ΓöÇΓöÇ Final plots ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+fig, axes = plt.subplots(1, 3, figsize=(18, 5))
+
+# ROC
+fpr, tpr, _ = roc_curve(y_test, proba_final)
+auc_val     = roc_auc_score(y_test, proba_final)
+axes[0].plot(fpr, tpr, '#4e79a7', lw=2, label=f'HGB (AUC={auc_val:.4f})')
+axes[0].plot([0,1],[0,1], 'k--', lw=1)
+axes[0].set(xlabel='FPR', ylabel='TPR', title='Final ROC Curve (Test Set)')
+axes[0].legend()
+axes[0].grid(alpha=0.3)
+
+# PR
+prec, rec, _ = precision_recall_curve(y_test, proba_final)
+axes[1].plot(rec, prec, '#59a14f', lw=2)
+axes[1].axhline(y_test.mean(), color='grey', linestyle='--',
+                label=f'Baseline ({y_test.mean():.1%})')
+axes[1].set(xlabel='Recall', ylabel='Precision', title='Final PR Curve (Test Set)')
+axes[1].legend()
+axes[1].grid(alpha=0.3)
+
+# Confusion Matrix
+cm = confusion_matrix(y_test, y_pred_opt)
+ConfusionMatrixDisplay(cm, display_labels=['<=50K', '>50K']).plot(
+    ax=axes[2], colorbar=False, cmap='Blues'
+)
+axes[2].set_title(f'Confusion Matrix (threshold={OPTIMAL_THRESHOLD:.2f})')
+
+plt.suptitle('Capstone Final Evaluation ΓÇö HistGradientBoosting (class_weight=balanced)',
+             fontsize=13, y=1.02)
+plt.tight_layout()
+plt.show()
+
+print(f'\nArtifact saved: {model_path}')
+print(f'Inference script: d:\\Netixsol_Internship\\netixsol_internship\\Week-4\\day-5\\inference.py')
+
+

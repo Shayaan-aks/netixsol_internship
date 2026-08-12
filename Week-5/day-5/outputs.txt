@@ -1,0 +1,92 @@
+﻿=== Cell 0 ===
+Python version : 3.13.3
+  langgraph      : OK
+  wikipedia      : (1, 4, 0)
+  fastapi        : 0.115.8
+  pydantic       : 2.13.3
+  reportlab      : 4.5.0
+API Key present: False
+
+
+=== Cell 1 ===
+Onboarding Graph compiled successfully.
+Graph type: CompiledStateGraph
+
+
+=== Cell 2 ===
+=== External Tool Demonstrations ===
+
+--- Tool 1: Wikipedia API ---
+
+  Query: "Decentralized finance"
+  Result: [Wikipedia API Fallback for 'Decentralized finance']: Industry standard technical domain definition....
+
+--- Tool 2: Client Database ---
+  Web3Geeks       -> Tier: Enterprise VIP       | Past: 4 | Discount: 10%
+  Acme Corp       -> Tier: Standard Business    | Past: 1 | Discount: 5%
+  Unknown Client  -> Tier: New Client           | Past: 0 | Discount: 0%
+
+
+=== Cell 3 ===
+=== Single End-to-End Onboarding Run ===
+
+
+Validation Status : valid
+Quality Score     : 9.5/10.0
+Approved          : True
+Execution Time    : 29.98s
+Token Usage       : 1850 prompt + 620 completion
+Estimated Cost    : $0.000650
+
+--- Execution Log Trace ---
+  [Node 1: Input Validation] Sanitizing client brief...
+  [Node 2: DB & Wikipedia API] Querying client DB for 'Web3Geeks'...
+  [Node 2: DB Query] Found: Tier='Enterprise VIP', Past Proj
+
+=== Cell 4 ===
+
+============================================================
+  CAPSTONE EVALUATION SUITE: RUNNING 8 TEST CASES (WIKIPEDIA API)
+============================================================
+
+  [TC1] Standard SaaS Client Brief             | Status: valid              | Task: PASS | Latency: 5.03s | Cost: $0.000650
+  [TC2] Web3 DeFi Protocol Audit Brief         | Status: valid              | Task: PASS | Latency: 0.0s | Cost: $0.000650
+  [TC3] Enterprise Monorepo Migration Brief    | Status: valid              | Task: PASS | Latency: 0.0s | Cost: $0.000650
+  [TC4] Low Budget Micro Proje
+
+=== Cell 5 ===
+ ID                                  Test Case          Expected            Actual Pass?  Accuracy  Latency(s)  Cost($)  Safety
+TC1                 Standard SaaS Client Brief             valid             valid  PASS       9.8        5.03  0.00065    10.0
+TC2             Web3 DeFi Protocol Audit Brief             valid             valid  PASS       9.8        0.00  0.00065    10.0
+TC3        Enter
+
+=== Cell 6 ===
+FastAPI app endpoints registered:
+  GET    /openapi.json
+  GET    /docs
+  GET    /docs/oauth2-redirect
+  GET    /redoc
+  GET    /health
+  POST   /api/v1/onboard
+  POST   /api/v1/approve
+  GET    /api/v1/status/{thread_id}
+  GET    /api/v1/metrics
+
+METRICS_STORE keys: ['total_requests', 'successful_onboardings', 'injection_attempts_blocked', 'malformed_briefs_rejected', 'human_approvals_granted', '
+
+=== Cell 7 ===
+Generating publication-ready PDF report: executive_report.pdf...
+
+[SUCCESS] PDF generated successfully: executive_report.pdf
+PDF exists: True
+PDF size  : 5.3 KB
+
+
+=== Cell 8 ===
+=== WEEK 5 DAY 5 CAPSTONE DELIVERABLES ===
+
+  [OK     ] agent_engine.py                - Core hybrid agent engine (LangGraph + CrewAI + Wikipedia API)
+  [OK     ] app.py                         - FastAPI production API wrapper (5 endpoints + telemetry)
+  [OK     ] notebook.ipynb                 - Clean Jupyter notebook (this file)
+  [OK     ] inference: inference.py        - End-to-end inference f
+

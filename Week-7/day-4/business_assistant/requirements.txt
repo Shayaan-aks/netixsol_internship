@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+sqlalchemy
+google-api-python-client
+google-auth-httplib2
+google-auth-oauthlib
+aiosmtplib
+pydantic-settings
+python-dotenv
+pytest
+pytest-asyncio

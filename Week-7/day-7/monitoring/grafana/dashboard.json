@@ -1,0 +1,51 @@
+{
+  "title": "NetixSol AI Platform Overview",
+  "tags": ["production", "ai-voice"],
+  "timezone": "browser",
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Active Sessions",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
+      "targets": [{ "expr": "agent_active_sessions" }]
+    },
+    {
+      "type": "stat",
+      "title": "Request Rate (per min)",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
+      "targets": [{ "expr": "sum(rate(http_requests_total[1m])) * 60" }]
+    },
+    {
+      "type": "stat",
+      "title": "Total Bookings",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
+      "targets": [{ "expr": "sum(agent_bookings_total)" }]
+    },
+    {
+      "type": "stat",
+      "title": "Security Violations",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
+      "targets": [{ "expr": "sum(agent_security_violations_total)" }],
+      "color": { "mode": "value" },
+      "colors": ["#299c46", "rgba(237, 129, 40, 0.89)", "#d44a3a"],
+      "thresholds": "0,1,5"
+    },
+    {
+      "type": "timeseries",
+      "title": "E2E P95 Latency",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum(rate(agent_request_latency_seconds_bucket[5m])) by (le))", "legendFormat": "P95 Latency (s)" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "API Errors & Tool Failures",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "targets": [
+        { "expr": "sum(rate(http_requests_total{status=~\"5..\"}[5m]))", "legendFormat": "HTTP 5xx" },
+        { "expr": "sum(rate(agent_api_failures_total[5m]))", "legendFormat": "Tool Failures" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+langchain
+langgraph
+langchain-google-genai
+pydantic
+sqlalchemy
+google-api-python-client
+aiosmtplib
+python-dotenv
+pytest
+pytest-asyncio

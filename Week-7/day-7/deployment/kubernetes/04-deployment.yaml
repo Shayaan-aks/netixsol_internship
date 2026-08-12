@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-deployment
+  namespace: real-estate-ai
+  labels:
+    app: agent
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: agent
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: agent
+    spec:
+      containers:
+        - name: fastapi-agent
+          image: real-estate-agent:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+          envFrom:
+            - configMapRef:
+                name: platform-config
+            - secretRef:
+                name: platform-secrets
+          livenessProbe:
+            httpGet:
+              path: /v1/live
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /v1/ready
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10

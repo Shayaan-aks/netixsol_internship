@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+websockets
+pydantic-settings
+langchain-google-genai
+deepgram-sdk
+httpx
+python-dotenv
+pytest

@@ -1,0 +1,51 @@
+﻿=== CELL 15 ===
+=== CELL 16 ===
+Pipeline saved : d:\Netixsol_Internship\netixsol_internship\Week-4\day-4\adult_income_pipeline.joblib
+File size      : 2367.7 KB
+
+=== How to Load and Run Inference ===
+
+import joblib
+artifact  = joblib.load('adult_income_pipeline.joblib')
+pipeline  = artifact['pipeline']           # CalibratedClassifierCV full pipeline
+threshold = artifact['optimal_threshold']  # F1-maximising threshold
+
+proba  = pipeline.predict_proba(X_new)[:, 1]  # P(>50K)
+y_pred = (proba >= threshold).astype(int)       # 0=<=50K, 1=>50K
+
+Note: Pass raw Adult-format DataFrame -- feature engineering,
+imputation, scaling and encoding happen inside the pipeline.
+
+
+=== CELL 17 ===
+============================================================
+FINAL TUNING SUMMARY
+============================================================
+
+Best model: HistGradientBoosting (isotonic-calibrated)
+Optimal threshold: 0.365
+
+Best HGB hyperparameters:
+  classifier__class_weight                : balanced
+  classifier__l2_regularization           : 0.7261414516028828
+  classifier__learning_rate               : 0.1035041273903399
+  classifier__max_iter                    : 120
+  classifier__max_leaf_nodes              : 43
+  classifier__min_samples_leaf            : 19
+
+Final test metrics (threshold=0.365):
+  F1        : 0.7306
+  Precision : 0.7056
+  Recall    : 0.7575
+  Accuracy  : 0.8663
+  ROC AUC   : 0.9299
+  Brier     : 0.0868
+
+Production behaviour:
+  1. Input : raw Adult-format DataFrame (no preprocessing needed)
+  2. Output: 0/1 binary via optimal probability threshold
+  3. Latency: <1ms per row on CPU
+  4. Monitor: Brier score (alert if drift >0.01) and F1 (alert if drop >0.03)
+  5. Retrain trigger: positive-class base rate shifts >5pp from 24%
+
+
